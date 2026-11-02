@@ -1,7 +1,6 @@
 # 개발 워크스테이션 구축 (터미널 · Docker · Git)
 
-> 진행 상황: 터미널, 권한, Docker 전 과정(설치·운영·커스텀 이미지·포트·바인드 마운트·볼륨), Git 설정 완료.
-> `TODO` 표시: VSCode GitHub 연동 증거(스크린샷)와 최종 보안 점검.
+> 진행 상황: 터미널, 권한, Docker 전 과정(설치·운영·커스텀 이미지·포트·바인드 마운트·볼륨), Git 설정, VSCode GitHub 연동 및 push 완료.
 
 ---
 
@@ -33,6 +32,11 @@
 │   └── index.html
 └── docs/
     └── images/        # 브라우저·VSCode 스크린샷 증거
+        ├── port-8080.png
+        ├── port-8081.png
+        ├── vscode-github.png
+        ├── vscode-account.png
+        └── git-push.png
 ```
 
 ## 4. 수행 체크리스트
@@ -48,8 +52,8 @@
 - [x] 바인드 마운트 변경 반영
 - [x] Docker 볼륨 영속성 (컨테이너 삭제 전/후)
 - [x] Git 사용자 정보·기본 브랜치 설정
-- [ ] VSCode GitHub 로그인 및 저장소 연동 (TODO: 스크린샷)
-- [ ] 민감정보 마스킹 최종 확인
+- [x] VSCode GitHub 로그인 및 저장소 연동 (push 완료)
+- [x] 민감정보 마스킹 (이메일)
 
 ---
 
@@ -615,15 +619,61 @@ Untracked files:
 - `On branch main` → `init.defaultBranch main` 설정이 적용됨.
 - VSCode: 1.143.1 설치, WSL 확장 설치 후 Ubuntu 터미널에서 `code .`으로 작업 폴더를 WSL 모드(`WSL: Ubuntu`)로 열고 Workspace Trust 설정.
 
-TODO: GitHub 저장소 연결·push 결과와 VSCode GitHub 로그인 화면
+### 14-1. 커밋
+
+```bash
+$ chmod 644 README.md docs/images/*.png
+$ git add .
+$ git status
+Changes to be committed:
+  (use "git rm --cached <file>..." to unstage)
+        new file:   Dockerfile
+        new file:   README.md
+        new file:   docs/images/port-8080.png
+        new file:   docs/images/port-8081.png
+        new file:   site/index.html
+
+$ git commit -m "Add Dockerfile, site, README and evidence images"
+ 5 files changed, 704 insertions(+)
+ create mode 100644 Dockerfile
+ create mode 100644 README.md
+ create mode 100644 docs/images/port-8080.png
+ create mode 100644 docs/images/port-8081.png
+ create mode 100644 site/index.html
+```
+
+- 모든 파일이 `100644`(일반 파일 권한)로 기록됨. Windows 경로에서 복사한 파일의 실행 권한을 `chmod 644`로 정리했기 때문이다(15-5 참고).
+
+### 14-2. 원격 저장소 연결 및 push (VSCode GitHub 로그인)
 
 ```bash
 $ git remote add origin https://github.com/leesw0224/codyssey-workstation.git
 $ git push -u origin main
-TODO: 출력
+Enumerating objects: 10, done.
+Counting objects: 100% (10/10), done.
+Delta compression using up to 12 threads
+Compressing objects: 100% (8/8), done.
+Writing objects: 100% (10/10), 86.62 KiB | 17.32 MiB/s, done.
+Total 10 (delta 0), reused 0 (delta 0), pack-reused 0 (from 0)
+To https://github.com/leesw0224/codyssey-workstation.git
+ * [new branch]      main -> main
+branch 'main' set up to track 'origin/main'.
 ```
 
-![VSCode GitHub 연동](docs/images/vscode-github.png)
+- VSCode 통합 터미널(WSL)에서 `git push` 실행 시 VSCode의 GitHub 확장이 로그인을 요청했고, Allow 후 계정(leesw0224)을 선택하여 인증 → push 성공.
+- 비밀번호나 토큰을 터미널에 직접 입력하지 않고 VSCode의 GitHub 인증을 사용했다.
+
+VSCode GitHub 로그인 요청:
+
+![VSCode GitHub 로그인](docs/images/vscode-github.png)
+
+GitHub 계정 선택:
+
+![VSCode GitHub 계정 선택](docs/images/vscode-account.png)
+
+push 성공 (상태 표시줄 `WSL: Ubuntu`, 브랜치 `main`):
+
+![git push 성공](docs/images/git-push.png)
 
 **Git과 GitHub의 차이**: Git은 내 컴퓨터에서 파일의 변경 이력을 관리하는 **로컬 버전 관리 도구**이고, GitHub는 Git 저장소를 원격에 올려 공유·협업하는 **원격 플랫폼**이다.
 
@@ -677,6 +727,34 @@ TODO: 출력
 - **확인**: 같은 시각에 `GET /`는 `200`, `GET /favicon.ico`만 `404`이며 User-Agent가 브라우저(Edge)임
 - **해결/대안**: 페이지 동작에는 영향이 없어 그대로 둠. 필요하면 `site/`에 `favicon.ico`를 추가하면 사라진다.
 
+### 15-5. Windows에서 복사한 README.md에 실행 권한이 붙음
+
+- **문제**: `cp /mnt/c/Users/user/Downloads/README.md .` 후 `ls -la`에서 README.md만 `-rwxr-xr-x`(755)
+- **원인 가설**: Windows 드라이브(`/mnt/c`)의 파일은 리눅스 권한 정보가 없어 실행 권한이 포함된 상태로 보이고, 복사할 때 그 권한이 넘어왔을 것이다.
+- **확인**: 같은 폴더의 `Dockerfile`(리눅스에서 직접 작성)은 `-rw-r--r--`(644)
+- **해결**: 문서·이미지에는 실행 권한이 필요 없으므로 644로 변경. Git은 실행 권한도 기록하므로 커밋 전에 정리함.
+  ```bash
+  $ chmod 644 README.md
+  $ ls -l README.md
+  -rw-r--r-- 1 suwon suwon 27277 Nov  2 22:43 README.md
+  ```
+  결과적으로 커밋 시 모든 파일이 `create mode 100644`로 기록됨(14-1).
+
+### 15-6. 이미지 복사 시 `No such file or directory`
+
+- **문제**:
+  ```bash
+  $ cp /mnt/c/Users/user/Downloads/port-8080.png /mnt/c/Users/user/Downloads/port-8081.png docs/images/
+  cp: cannot stat '/mnt/c/Users/user/Downloads/port-8080.png': No such file or directory
+  cp: cannot stat '/mnt/c/Users/user/Downloads/port-8081.png': No such file or directory
+  ```
+- **원인 가설**: 파일이 지정한 경로에 없을 것이다(경로 오류).
+- **확인**: Windows 탐색기에서 파일 위치가 `다운로드 > files` 하위 폴더임을 확인 (`ls /mnt/c/Users/user/Downloads/`로도 확인 가능)
+- **해결**: 하위 폴더를 포함한 정확한 경로로 다시 복사
+  ```bash
+  $ cp /mnt/c/Users/user/Downloads/files/port-8080.png /mnt/c/Users/user/Downloads/files/port-8081.png docs/images/
+  ```
+
 ## 16. 과제 목표 정리
 
 | 항목 | 내 설명 |
@@ -693,4 +771,5 @@ TODO: 출력
 - 로그·README·스크린샷에서 이메일 주소를 마스킹했다.
 - 토큰, 비밀번호, 개인 키, 인증 코드는 문서와 저장소에 포함하지 않는다.
 - 민감정보가 커밋된 경우 **먼저 해당 토큰을 폐기하고 재발급**한 뒤 히스토리를 정리한다.
-- TODO: push 전 최종 확인 (`git log`, README, docs/images 스크린샷)
+- push 전 README와 스크린샷에 토큰·비밀번호·실제 이메일이 노출되지 않았는지 확인했다.
+- GitHub 인증은 VSCode GitHub 확장으로 처리하여 토큰을 문서나 터미널 기록에 남기지 않았다.

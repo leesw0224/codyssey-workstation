@@ -1,775 +1,714 @@
-# 개발 워크스테이션 구축 (터미널 · Docker · Git)
+# 개발 워크스테이션 구축
+### 미션 1 수행 기록 · Linux CLI · Docker · Git/GitHub
 
-> 진행 상황: 터미널, 권한, Docker 전 과정(설치·운영·커스텀 이미지·포트·바인드 마운트·볼륨), Git 설정, VSCode GitHub 연동 및 push 완료.
+| 항목 | 내용 |
+|---|---|
+| 과정 | 코디세이 경남 AI 올인원 과정 · 입학연수 미션 1 |
+| 수행자 | suwon |
+| GitHub | [leesw0224](https://github.com/leesw0224) |
+| 제출 저장소 | https://github.com/leesw0224/codyssey-workstation |
+| 수행일 | 2026-11-02 |
+| 최종 확인 커밋 | `d0c61aa` (`main`, 기존 보고서 기준 2개 커밋) |
+
+> 이 문서는 실제 미션 수행 보고서에 기록된 환경, 명령어, 실행 결과를 중심으로 정리했습니다. 평가 피드백에 따라 **포트 충돌 진단 및 해제 절차**를 추가했습니다. 새로 추가한 절차는 재현 가능한 참고 절차이며, 실제 수행 로그와 구분해 표시합니다.
 
 ---
 
-## 1. 프로젝트 개요
+## 목차
 
-터미널, Docker, Git/GitHub를 직접 세팅하고, 컨테이너 실행·포트 매핑·바인드 마운트·볼륨 영속성을 검증하여 누구나 같은 방식으로 실행할 수 있는 재현 가능한 개발 환경을 구성한다.
+1. [미션 개요 및 요구사항](#1-미션-개요-및-요구사항)
+2. [개발 환경](#2-개발-환경)
+3. [개발 워크스테이션 전체 구조](#3-개발-워크스테이션-전체-구조)
+4. [WSL2 및 Ubuntu](#4-wsl2-및-ubuntu)
+5. [Linux 파일 시스템과 CLI](#5-linux-파일-시스템과-cli)
+6. [Linux 권한과 chmod](#6-linux-권한과-chmod)
+7. [Docker 설치 및 기본 점검](#7-docker-설치-및-기본-점검)
+8. [컨테이너 실행과 생명주기](#8-컨테이너-실행과-생명주기)
+9. [Dockerfile과 커스텀 이미지](#9-dockerfile과-커스텀-이미지)
+10. [포트 매핑 및 웹 접속](#10-포트-매핑-및-웹-접속)
+11. [바인드 마운트](#11-바인드-마운트)
+12. [Docker 볼륨과 데이터 영속성](#12-docker-볼륨과-데이터-영속성)
+13. [Git 설정 및 GitHub 제출](#13-git-설정-및-github-제출)
+14. [VSCode와 WSL 연동](#14-vscode와-wsl-연동)
+15. [트러블슈팅](#15-트러블슈팅)
+16. [과제 목표 정리](#16-과제-목표-정리)
+17. [최종 결과물 및 저장소 구조](#17-최종-결과물-및-저장소-구조)
+18. [개념 설명 이미지 12장](#18-개념-설명-이미지-12장)
 
-## 2. 실행 환경
+---
 
-| 항목 | 버전 / 내용 |
+## 1. 미션 개요 및 요구사항
+
+이번 미션의 목표는 터미널, Docker, Git을 직접 설치·설정하고 컨테이너 실행, 포트 매핑, 바인드 마운트, 볼륨 영속성을 검증하여 반복 가능한 개발 환경을 구축하는 것입니다. 최종 수행 기록과 결과물은 GitHub 저장소에서 확인할 수 있도록 정리했습니다.
+
+| 번호 | 기능 요구사항 | 수행 결과 |
+|---:|---|---|
+| 1 | 제출 저장소 및 기술 문서 | 완료 |
+| 2 | 터미널 조작 로그 기록 | 완료 |
+| 3 | 권한 실습 및 증거 기록 | 완료 |
+| 4 | Docker 설치 및 기본 점검 | 완료 |
+| 5 | Docker 기본 운영 명령 수행 | 완료 |
+| 6 | 컨테이너 실행 실습(run/attach/exec) | 완료 |
+| 7 | Dockerfile 기반 커스텀 이미지 제작 | 완료 |
+| 8 | 포트 매핑 및 접속 확인 | 완료 |
+| 9 | Docker 볼륨 영속성 검증 | 완료 |
+| 10 | Git 설정 및 GitHub 연동 | 완료 |
+| 11 | 보안 및 개인정보 보호 | 완료 |
+
+Docker Compose, 멀티 컨테이너 운영 심화, 환경 변수 심화, GitHub SSH 키 설정은 선택 과제로 이번 수행 범위에는 포함하지 않았습니다.
+
+## 2. 개발 환경
+
+| 항목 | 버전 및 구성 |
 |---|---|
 | Host OS | Windows |
-| Linux 환경 | WSL2 + Ubuntu 26.04.1 LTS (Resolute Raccoon) |
-| Kernel | 6.18.54.1-microsoft-standard-WSL2 |
-| Shell | bash |
-| Terminal | Windows Terminal (Ubuntu), VSCode 통합 터미널 |
-| Docker 실행 환경 | Docker Desktop 4.97.0 (WSL 2 백엔드, WSL integration: Ubuntu) |
-| Docker Engine | 29.9.2 (build a82e528) |
+| Linux 환경 | WSL2 + Ubuntu 26.04.1 LTS |
+| Kernel | `6.18.54.1-microsoft-standard-WSL2` |
+| Shell | Bash |
+| Terminal | Windows Terminal, VSCode 통합 터미널 |
+| Docker | Docker Desktop 4.97.0 |
+| Docker Engine | 29.9.2 (`a82e528`) |
 | Git | 2.53.0 |
 | Editor | Visual Studio Code 1.143.1 + WSL 확장 |
 
-## 3. 저장소 구조
+## 3. 개발 워크스테이션 전체 구조
+
+![개발 워크스테이션 전체 구조](docs/images/concepts/01-workstation-overview.png)
+
+- **Windows**: 호스트 운영체제입니다.
+- **WSL2**: Windows에서 Linux 환경을 실행할 수 있도록 합니다.
+- **Ubuntu**: 실제 Linux 명령을 실행하는 배포판입니다.
+- **CLI**: 파일·디렉터리 관리 및 명령 실행 도구입니다.
+- **Docker**: 컨테이너 기반 실행 환경을 관리합니다.
+- **Git**: 소스 코드의 변경 이력을 관리합니다.
+- **VSCode**: WSL 환경의 프로젝트를 편집하고 실행합니다.
+- **GitHub**: Git 저장소를 원격에 보관하고 공유합니다.
+
+전체 흐름은 Windows → WSL2/Ubuntu → 개발 도구(CLI·Docker·Git·VSCode) → GitHub 원격 저장소입니다.
+
+## 4. WSL2 및 Ubuntu
+
+Windows에서 Linux 명령을 사용하기 위해 WSL2와 Ubuntu를 설치했습니다. 최초 설치 후 Ubuntu 배포판이 확인되지 않아 `wsl -l -v`로 상태를 확인하고 배포판을 별도로 설치했습니다.
+
+PowerShell(관리자 권한)에서 실행:
+
+```powershell
+wsl --install -d Ubuntu
+wsl -l -v
+```
+
+설치가 완료되면 Ubuntu를 실행하고 Linux 사용자 계정을 생성합니다.
+
+## 5. Linux 파일 시스템과 CLI
+
+![Linux 파일 시스템과 CLI 명령어](docs/images/concepts/02-linux-filesystem-cli.png)
+
+실습은 Windows 마운트 경로(`/mnt/c`)가 아니라 Linux 홈 디렉터리(`/home/suwon`) 아래에서 진행했습니다. Linux 파일 권한 실습을 정확하게 확인하기 위한 선택입니다.
+
+| 명령어 | 기능 | 예시 |
+|---|---|---|
+| `pwd` | 현재 작업 경로 출력 | `pwd` |
+| `ls -a` | 숨김 항목 포함 목록 | `ls -a` |
+| `ls -la` | 상세 목록 및 권한 확인 | `ls -la` |
+| `cd` | 디렉터리 이동 | `cd practice` |
+| `mkdir -p` | 중간 경로를 포함한 디렉터리 생성 | `mkdir -p codyssey/practice` |
+| `touch` | 빈 파일 생성 | `touch empty.txt` |
+| `echo` | 문자열 출력 및 파일 기록 | `echo "hello" > memo.txt` |
+| `cat` | 파일 내용 확인 | `cat memo.txt` |
+| `cp` | 파일 복사 | `cp memo.txt memo_copy.txt` |
+| `mv` | 파일 이동 또는 이름 변경 | `mv memo.txt renamed.txt` |
+| `rm` | 파일 삭제 | `rm renamed.txt` |
+| `rm -r` | 디렉터리와 내부 항목 삭제 | `rm -r sub` |
+
+### 경로 기호
+
+| 표현 | 의미 |
+|---|---|
+| `/` | 루트 디렉터리 |
+| `~` | 현재 사용자의 홈 디렉터리 |
+| `.` | 현재 디렉터리 |
+| `..` | 상위 디렉터리 |
+| `/home/suwon/...` | 절대 경로 |
+| `./sub` | 현재 위치 기준 상대 경로 |
+
+### 파일 기록의 차이
+
+```bash
+echo "첫 번째 내용" > memo.txt
+echo "두 번째 내용" >> memo.txt
+cat memo.txt
+```
+
+- `>`: 기존 파일 내용을 덮어씁니다.
+- `>>`: 기존 내용 뒤에 새 내용을 추가합니다.
+
+## 6. Linux 권한과 chmod
+
+![Linux 파일 및 디렉터리 권한](docs/images/concepts/03-linux-permissions-chmod.png)
+
+Linux 권한은 소유자(User), 그룹(Group), 기타 사용자(Other) 순서로 표시합니다.
+
+| 권한 | 숫자 | 의미 |
+|---|---:|---|
+| `r` | 4 | 읽기 |
+| `w` | 2 | 쓰기 |
+| `x` | 1 | 실행 및 디렉터리 탐색 |
+
+| 숫자 권한 | 문자 표기 | 의미 |
+|---:|---|---|
+| 755 | `rwxr-xr-x` | 소유자 읽기·쓰기·실행, 그룹·기타 읽기·실행 |
+| 644 | `rw-r--r--` | 소유자 읽기·쓰기, 그룹·기타 읽기 |
+| 600 | `rw-------` | 소유자만 읽기·쓰기 |
+
+실습 명령:
+
+```bash
+ls -l memo.txt
+chmod 600 memo.txt
+ls -l memo.txt
+chmod 644 memo.txt
+ls -l memo.txt
+```
+
+디렉터리 권한 실습:
+
+```bash
+chmod 644 sub
+cd sub
+# Permission denied 발생 확인
+
+chmod 755 sub
+cd sub
+pwd
+```
+
+파일의 `x`는 실행 권한이며, 디렉터리의 `x`는 해당 디렉터리에 접근하고 내부 항목을 탐색할 수 있는 권한입니다. 디렉터리에서 `x` 권한을 제거하면 일반적으로 해당 경로로 진입할 수 없습니다.
+
+## 7. Docker 설치 및 기본 점검
+
+![Docker 기본 구조](docs/images/concepts/04-docker-basics.png)
+
+Docker Desktop을 설치한 뒤 WSL2 백엔드와 Ubuntu 통합을 활성화했습니다.
+
+```bash
+docker --version
+docker info
+docker images
+docker ps
+docker ps -a
+```
+
+- `docker --version`: Docker CLI 버전 확인
+- `docker info`: Docker 클라이언트와 서버 정보 확인
+- `docker images`: 로컬 이미지 목록 확인
+- `docker ps`: 실행 중인 컨테이너 확인
+- `docker ps -a`: 종료된 컨테이너를 포함한 전체 목록 확인
+
+`docker info`에서 Server 정보가 출력되는 것을 확인하여 CLI와 Docker 데몬의 연결 상태를 점검했습니다.
+
+### hello-world 실행
+
+```bash
+docker run hello-world
+```
+
+로컬에 이미지가 없으면 이미지를 내려받고 컨테이너를 실행합니다. `Hello from Docker!` 메시지가 출력되면 기본 실행이 정상적으로 이루어진 것입니다.
+
+## 8. 컨테이너 실행과 생명주기
+
+![Docker run exec attach 비교](docs/images/concepts/05-docker-run-exec-attach.png)
+
+| 명령 | 역할 |
+|---|---|
+| `docker run -it` | 이미지로 새 컨테이너를 만들고 대화형으로 실행 |
+| `docker exec -it` | 실행 중인 컨테이너 안에서 새 프로세스 실행 |
+| `docker attach` | 실행 중인 컨테이너의 메인 프로세스에 연결 |
+
+실습에서 확인한 종료 결과:
+
+| 진입 방법 | 종료·분리 방법 | 컨테이너 상태 |
+|---|---|---|
+| `docker run -it` | `exit` | 종료 |
+| `docker exec -it` | `exit` | 컨테이너 유지 |
+| `docker attach` | `Ctrl+P`, `Ctrl+Q` | 컨테이너 유지, 연결만 해제 |
+| `docker attach` | `exit` | 메인 프로세스 종료로 컨테이너 종료 |
+
+컨테이너는 메인 프로세스가 실행 중인 동안 살아 있습니다. `exec`는 별도의 추가 프로세스를 실행하므로 그 셸에서 `exit`해도 메인 프로세스가 유지됩니다. `attach`는 메인 프로세스에 직접 연결하므로 `exit`하면 메인 프로세스가 종료될 수 있습니다.
+
+상태 확인:
+
+```bash
+docker ps
+docker ps -a
+docker logs <컨테이너명>
+```
+
+## 9. Dockerfile과 커스텀 이미지
+
+![Dockerfile과 커스텀 이미지 제작](docs/images/concepts/06-dockerfile-custom-image.png)
+
+기존 `nginx:alpine` 이미지를 기반으로 직접 만든 정적 웹 페이지를 포함하는 커스텀 이미지를 제작했습니다.
+
+### Dockerfile
+
+```dockerfile
+FROM nginx:alpine
+
+LABEL org.opencontainers.image.title="suwon-custom-nginx"
+LABEL org.opencontainers.image.authors="suwon"
+
+ENV APP_ENV=dev
+
+COPY site/ /usr/share/nginx/html/
+
+EXPOSE 80
+```
+
+| 명령어 | 역할 |
+|---|---|
+| `FROM` | 기반 이미지 지정 |
+| `LABEL` | 이미지 메타데이터 기록 |
+| `ENV` | 환경 변수 설정 |
+| `COPY` | 빌드 컨텍스트의 파일을 이미지 내부로 복사 |
+| `EXPOSE` | 컨테이너가 사용할 포트를 문서화 |
+
+`ENV APP_ENV=dev`는 환경 변수를 설정하지만 nginx의 기본 동작을 자동으로 변경하지는 않습니다. `EXPOSE 80` 역시 포트를 문서화하는 설정이며, 호스트에서 접속할 수 있도록 포트를 공개하려면 컨테이너 실행 시 `-p` 옵션을 사용해야 합니다.
+
+### 이미지 빌드
+
+```bash
+docker build -t suwon-web:1.0 .
+docker images
+```
+
+- `-t suwon-web:1.0`: 이미지 이름과 태그 지정
+- `.`: 현재 디렉터리를 빌드 컨텍스트로 사용
+
+## 10. 포트 매핑 및 웹 접속
+
+![Docker 포트 매핑 원리](docs/images/concepts/07-docker-port-mapping.png)
+
+컨테이너 내부 웹 서버의 포트와 호스트 컴퓨터의 포트를 연결합니다.
+
+```bash
+docker run -d -p 8080:80 --name web-8080 suwon-web:1.0
+docker run -d -p 8081:80 --name web-8081 suwon-web:1.0
+docker ps
+```
+
+`-p 호스트포트:컨테이너포트` 형식입니다.
+
+- `8080:80`: 호스트 8080 → 컨테이너 80
+- `8081:80`: 호스트 8081 → 컨테이너 80
+
+브라우저 접속 주소:
+
+- http://localhost:8080
+- http://localhost:8081
+
+두 컨테이너는 내부에서 동일하게 80번 포트를 사용하지만 호스트 포트를 다르게 지정했으므로 동시에 실행할 수 있습니다.
+
+### 포트 충돌 진단 및 해제 절차 — 평가 피드백 반영 추가
+
+동일한 호스트 포트를 이미 다른 프로세스나 컨테이너가 사용 중이면 `port is already allocated` 또는 포트 바인딩 오류가 발생할 수 있습니다. 이때는 무작정 프로세스를 종료하지 말고, **누가 포트를 사용 중인지 확인한 뒤 소유한 서비스에 맞는 방법으로 해제**합니다.
+
+#### 1) Docker 컨테이너가 포트를 사용하는지 확인
+
+```bash
+docker ps --filter "publish=8080"
+docker ps -a
+```
+
+`docker ps` 결과에서 `PORTS` 항목이 `0.0.0.0:8080->80/tcp`처럼 표시되는 컨테이너가 해당 호스트 포트를 게시하고 있는지 확인합니다.
+
+해당 컨테이너가 맞다면 컨테이너 이름 또는 ID를 확인한 후 정상적으로 중지합니다.
+
+```bash
+docker stop web-8080
+```
+
+필요한 경우 중지된 컨테이너를 삭제할 수 있습니다. 삭제는 컨테이너 자체를 제거하므로, 필요한 데이터가 볼륨에 저장되어 있는지 먼저 확인합니다.
+
+```bash
+docker rm web-8080
+```
+
+#### 2) Linux/WSL에서 포트를 점유한 프로세스 확인
+
+```bash
+sudo ss -ltnp 'sport = :8080'
+```
+
+`lsof`가 설치되어 있다면 다음 명령도 사용할 수 있습니다.
+
+```bash
+sudo lsof -nP -iTCP:8080 -sTCP:LISTEN
+```
+
+출력에 표시된 PID와 프로세스 이름을 확인합니다. `ss` 또는 `lsof` 결과가 비어 있다면 해당 Linux 환경에서 확인되는 리스닝 프로세스가 없다는 뜻일 수 있습니다. Docker Desktop을 사용하는 경우 Windows 호스트 측 포트 점유 여부도 확인합니다.
+
+#### 3) Windows 호스트에서 포트 점유 프로세스 확인
+
+PowerShell에서 실행합니다.
+
+```powershell
+netstat -ano | findstr :8080
+```
+
+마지막 열의 PID를 확인한 다음 프로세스 이름을 조회합니다.
+
+```powershell
+tasklist /FI "PID eq <PID>"
+```
+
+프로세스의 정체와 종료해도 되는 작업인지 확인한 후에만 종료합니다.
+
+```powershell
+taskkill /PID <PID> /T
+```
+
+강제 종료 옵션(`/F`)은 정상 종료가 되지 않고 해당 프로세스를 종료해도 된다는 점을 확인한 경우에만 사용합니다. 알 수 없는 시스템 프로세스나 다른 작업이 사용 중인 프로세스를 임의로 종료하지 않습니다.
+
+#### 4) 포트 해제 확인 및 컨테이너 재실행
+
+프로세스 또는 컨테이너를 정상적으로 중지한 뒤 다시 확인합니다.
+
+```bash
+sudo ss -ltnp 'sport = :8080'
+docker ps --filter "publish=8080"
+```
+
+포트가 해제되었으면 기존 명령으로 다시 실행합니다.
+
+```bash
+docker run -d -p 8080:80 --name web-8080 suwon-web:1.0
+docker ps
+```
+
+기존 호스트 포트를 비울 수 없거나 다른 서비스가 계속 사용해야 한다면, 사용 가능한 다른 호스트 포트를 선택합니다.
+
+```bash
+docker run -d -p 8081:80 --name web-8081 suwon-web:1.0
+```
+
+이 경우 브라우저에서는 `http://localhost:8081`로 접속합니다. 컨테이너 내부 포트 80은 그대로 유지하고 호스트 포트만 변경한 것입니다.
+
+> **점검 순서:** `docker ps`로 컨테이너 확인 → `ss`/`lsof` 또는 Windows `netstat`으로 프로세스 확인 → 소유 서비스 정상 중지 → 포트 해제 재확인 → 컨테이너 재실행 및 브라우저 접속 검증.
+
+## 11. 바인드 마운트
+
+![Docker 바인드 마운트](docs/images/concepts/08-docker-bind-mount.png)
+
+바인드 마운트는 호스트의 특정 폴더를 컨테이너 내부 경로에 직접 연결하는 방식입니다.
+
+실습 명령:
+
+```bash
+docker run -d -p 8082:80 \
+  --name web-bind \
+  -v "$(pwd)/site":/usr/share/nginx/html \
+  suwon-web:1.0
+```
+
+호스트에서 HTML 파일을 수정합니다.
+
+```bash
+echo "<p>bind mount test: updated from host</p>" >> site/index.html
+```
+
+`http://localhost:8082`를 새로고침하면 호스트에서 수정한 내용이 반영되는 것을 확인할 수 있습니다. 반면 이미지 빌드 시점에 `COPY`로 파일을 넣은 기존 컨테이너는 호스트 폴더와 연결되어 있지 않으므로 해당 수정이 자동 반영되지 않습니다.
+
+| 구분 | 바인드 마운트 | 이미지의 COPY |
+|---|---|---|
+| 파일 위치 | 호스트 폴더와 컨테이너 경로 연결 | 빌드 시 이미지 내부에 복사 |
+| 호스트 수정 반영 | 연결된 파일 변경이 컨테이너에 반영 | 이미지 재빌드 및 컨테이너 재생성 필요 |
+| 주요 용도 | 개발 중 파일 수정 및 테스트 | 배포할 이미지에 파일 포함 |
+
+## 12. Docker 볼륨과 데이터 영속성
+
+![Docker 볼륨과 데이터 영속성](docs/images/concepts/09-docker-volume-persistence.png)
+
+Docker 볼륨은 Docker가 관리하는 저장 공간으로, 컨테이너의 생명주기와 분리해 데이터를 보존할 수 있습니다.
+
+실제 미션에서 사용한 볼륨 이름은 `suwon-data`입니다.
+
+```bash
+docker volume create suwon-data
+
+docker run -d --name vol-a \
+  -v suwon-data:/data \
+  ubuntu sleep infinity
+```
+
+첫 번째 컨테이너에 데이터를 기록하고 확인합니다.
+
+```bash
+docker exec vol-a bash -c \
+  "echo 'saved by vol-a' > /data/note.txt && cat /data/note.txt"
+```
+
+컨테이너를 삭제합니다.
+
+```bash
+docker rm -f vol-a
+```
+
+동일한 볼륨을 새 컨테이너에 연결합니다.
+
+```bash
+docker run -d --name vol-b \
+  -v suwon-data:/data \
+  ubuntu sleep infinity
+
+docker exec vol-b cat /data/note.txt
+```
+
+기존에 저장한 `saved by vol-a`가 출력되는 것을 확인했습니다. 즉, 컨테이너 `vol-a`는 삭제되었지만 볼륨 `suwon-data`에 저장한 파일은 유지되었습니다.
+
+볼륨 확인 명령:
+
+```bash
+docker volume ls
+docker volume inspect suwon-data
+```
+
+| 구분 | 바인드 마운트 | Docker 볼륨 |
+|---|---|---|
+| 저장 위치 | 사용자가 지정한 호스트 경로 | Docker가 관리하는 저장 영역 |
+| 주 용도 | 개발 중 파일 변경 반영 | 컨테이너와 독립적인 데이터 보존 |
+| 컨테이너 삭제 | 호스트 원본 파일은 유지 | 볼륨을 삭제하지 않았다면 데이터 유지 |
+
+## 13. Git 설정 및 GitHub 제출
+
+Git은 로컬 프로젝트의 변경 이력을 관리하는 버전 관리 도구이며, GitHub는 Git 저장소를 원격에 보관하고 공유하는 서비스입니다.
+
+### Git 기본 설정
+
+```bash
+git --version
+git config --global user.name "suwon"
+git config --global user.email "실제 사용하는 이메일 주소"
+git config --global init.defaultBranch main
+git config --list
+```
+
+`user.email`에는 예시 문구가 아니라 실제 사용할 이메일 주소를 입력합니다. 이메일 등 개인 정보는 공개 문서나 화면 캡처에 노출되지 않도록 주의합니다.
+
+### 저장소 초기화 및 커밋
+
+```bash
+git init
+git status
+git add .
+git status
+git commit -m "프로젝트 초기 등록"
+```
+
+- `git add`: 커밋할 변경 사항을 스테이징 영역에 추가합니다.
+- `git commit`: 스테이징된 변경 사항을 로컬 저장소의 이력으로 기록합니다.
+- `git status`: 현재 작업 트리와 스테이징 상태를 확인합니다.
+
+### 원격 저장소 연결 및 Push
+
+```bash
+git remote add origin https://github.com/leesw0224/codyssey-workstation.git
+git push -u origin main
+```
+
+원격 저장소 확인:
+
+```bash
+git remote -v
+git log --oneline
+```
+
+기존 수행 보고서에는 `b9af439` 이후 `d0c61aa` 커밋까지 두 차례 커밋한 것으로 기록되어 있습니다. GitHub 인증은 VSCode의 GitHub 로그인 흐름을 사용했으며 비밀번호나 토큰을 터미널에 직접 입력하지 않았습니다.
+
+## 14. VSCode와 WSL 연동
+
+![VSCode WSL GitHub 연동 구조](docs/images/concepts/11-vscode-wsl-github.png)
+
+1. Windows에 Visual Studio Code 설치
+2. Microsoft의 WSL 확장 설치
+3. Ubuntu 터미널에서 프로젝트 디렉터리로 이동
+4. `code .` 명령으로 현재 WSL 폴더를 VSCode에서 열기
+5. Workspace Trust 설정
+6. VSCode 통합 터미널에서 Git 명령 실행
+7. GitHub 계정 인증 후 원격 저장소에 Push
+
+```bash
+cd ~/codyssey/workstation
+code .
+```
+
+VSCode 하단 상태 표시줄에서 `WSL: Ubuntu` 연결 상태를 확인할 수 있습니다. 이 방식으로 Windows의 VSCode를 사용하면서 실제 파일과 명령 실행은 WSL의 Linux 개발 환경에서 진행할 수 있습니다.
+
+## 15. 트러블슈팅
+
+![개발 환경 트러블슈팅](docs/images/concepts/12-troubleshooting.png)
+
+### 15-1. Ubuntu가 실행되지 않음
+
+- **증상:** 시작 메뉴에서 Ubuntu가 검색되지 않음.
+- **확인:** `wsl -l -v`에서 설치된 배포판이 없는 것을 확인.
+- **해결:** 관리자 PowerShell에서 `wsl --install -d Ubuntu` 실행.
+
+### 15-2. `mkdir` 실행 시 File exists
+
+- **증상:** `mkdir: cannot create directory 'sub': File exists`
+- **원인:** 동일한 이름의 디렉터리가 이미 존재.
+- **확인:** `ls -la`
+- **해결:** 기존 디렉터리를 사용하거나 중복 생성 오류를 피하려면 `mkdir -p sub` 사용.
+
+### 15-3. Git 이메일 설정 오류
+
+- **증상:** `git config --list`에서 `user.email`에 안내용 문구가 저장됨.
+- **원인:** 예시의 자리 표시 문구를 실제 값 대신 입력.
+- **해결:** 실제 이메일 주소로 다시 설정.
+
+```bash
+git config --global user.email "실제 사용하는 이메일 주소"
+git config --global user.email
+```
+
+### 15-4. nginx 로그의 favicon.ico 404
+
+- **증상:** `docker logs`에서 `/favicon.ico` 요청이 404로 기록됨.
+- **확인:** 웹 페이지 요청(`/`)은 200이고 favicon 요청만 404인지 확인.
+- **원인:** 브라우저가 탭 아이콘 파일을 요청했지만 해당 파일이 없음.
+- **조치:** 페이지 본문 동작에는 영향이 없어 유지했습니다. 필요하면 `site/`에 favicon 파일을 추가할 수 있습니다.
+
+### 15-5. README.md에 불필요한 실행 권한이 설정됨
+
+- **증상:** README 파일 권한이 `-rwxr-xr-x`(755)로 표시됨.
+- **원인:** 파일 복사 과정에서 실행 권한이 함께 설정됨.
+- **해결:** 문서 파일에 적절한 권한인 644로 변경.
+
+```bash
+chmod 644 README.md
+ls -l README.md
+```
+
+### 15-6. 이미지 복사 시 No such file or directory
+
+- **증상:** `cp: cannot stat ... No such file or directory`
+- **원인:** 지정한 경로에 원본 이미지가 없음.
+- **확인:** 파일 탐색기에서 실제 다운로드 위치 확인.
+- **해결:** 실제 파일이 있는 경로를 확인한 뒤 복사 명령을 다시 실행.
+
+### 15-7. 포트 충돌 — 평가 피드백에 따라 보완
+
+- **증상:** 컨테이너 실행 시 `port is already allocated` 등 포트 바인딩 오류 발생.
+- **원인:** 동일한 호스트 포트를 다른 컨테이너 또는 프로세스가 사용 중.
+- **진단 명령:**
+
+```bash
+docker ps --filter "publish=8080"
+sudo ss -ltnp 'sport = :8080'
+sudo lsof -nP -iTCP:8080 -sTCP:LISTEN
+```
+
+- **Windows 호스트 확인(PowerShell):**
+
+```powershell
+netstat -ano | findstr :8080
+tasklist /FI "PID eq <PID>"
+```
+
+- **해제:** Docker 컨테이너가 점유 중이면 해당 컨테이너를 확인한 뒤 `docker stop <컨테이너명>`으로 중지합니다. 일반 프로세스라면 PID와 프로그램을 확인하고 종료해도 안전한 경우에만 정상 종료합니다.
+- **재시작:** 포트가 해제되었는지 다시 확인한 뒤 컨테이너를 실행합니다. 기존 포트를 사용할 수 없다면 호스트 포트를 변경합니다.
+
+```bash
+docker run -d -p 8081:80 --name web-8081 suwon-web:1.0
+```
+
+이 15-7 항목은 평가에서 지적된 문서 누락을 보완하기 위해 추가한 진단·대응 절차입니다. 기존 수행 보고서에 실제 포트 충돌을 해결한 실행 로그가 있었다는 뜻은 아닙니다.
+
+## 16. 과제 목표 정리
+
+| 핵심 개념 | 정리 |
+|---|---|
+| 절대 경로와 상대 경로 | `/`로 시작하면 절대 경로이며, 그 외에는 현재 위치를 기준으로 하는 상대 경로입니다. |
+| Linux 권한 | `r=4`, `w=2`, `x=1`을 소유자·그룹·기타 사용자 순서로 표시합니다. |
+| Dockerfile과 이미지 | Dockerfile의 지시문으로 이미지 제작 규칙을 정의하고 `docker build`로 이미지를 생성합니다. |
+| 이미지와 컨테이너 | 이미지는 실행 기반이며 컨테이너는 이미지로부터 생성되어 실제 실행되는 인스턴스입니다. |
+| 포트 매핑 | `-p 호스트포트:컨테이너포트`로 호스트에서 컨테이너 서비스에 접근하도록 연결합니다. |
+| 바인드 마운트 | 호스트 폴더와 컨테이너 경로를 직접 연결해 파일 변경을 공유합니다. |
+| Docker 볼륨 | 컨테이너와 독립적으로 데이터를 보존할 수 있는 Docker 관리 저장 공간입니다. |
+| Git과 GitHub | Git은 버전 관리 도구이고 GitHub는 Git 저장소를 원격으로 보관·공유하는 서비스입니다. |
+
+## 17. 최종 결과물 및 저장소 구조
+
+- GitHub 저장소: https://github.com/leesw0224/codyssey-workstation
+- 커스텀 이미지: `suwon-web:1.0`
+- Docker 볼륨: `suwon-data`
+- 최종 확인 커밋: `d0c61aa`
+- 개념 설명용 인포그래픽: 12장
 
 ```text
-.
+codyssey-workstation/
 ├── README.md
 ├── Dockerfile
 ├── site/
 │   └── index.html
 └── docs/
-    └── images/        # 브라우저·VSCode 스크린샷 증거
-        ├── port-8080.png
-        ├── port-8081.png
-        ├── vscode-github.png
-        ├── vscode-account.png
-        └── git-push.png
+    └── images/
+        ├── (기존 수행 증거 이미지 5장 유지)
+        └── concepts/
+            ├── 01-workstation-overview.png
+            ├── 02-linux-filesystem-cli.png
+            ├── 03-linux-permissions-chmod.png
+            ├── 04-docker-basics.png
+            ├── 05-docker-run-exec-attach.png
+            ├── 06-dockerfile-custom-image.png
+            ├── 07-docker-port-mapping.png
+            ├── 08-docker-bind-mount.png
+            ├── 09-docker-volume-persistence.png
+            ├── 10-git-github-workflow.png
+            ├── 11-vscode-wsl-github.png
+            └── 12-troubleshooting.png
 ```
 
-## 4. 수행 체크리스트
+## 18. 개념 설명 이미지 12장
 
-- [x] 터미널 기본 조작 (위치 확인, 목록, 이동, 생성, 복사, 이동/이름변경, 삭제, 내용 확인, 빈 파일)
-- [x] 권한 변경 실습 (파일 1개, 디렉터리 1개, 변경 전/후 비교)
-- [x] Docker 설치 및 점검 (`docker --version`, `docker info`)
-- [x] Docker 기본 운영 명령 (images, ps, ps -a, logs, stats)
-- [x] hello-world 실행
-- [x] ubuntu 컨테이너 진입 및 명령 수행, attach/exec 차이 관찰
-- [x] Dockerfile 커스텀 이미지 빌드/실행
-- [x] 포트 매핑 접속 (2회: 8080, 8081)
-- [x] 바인드 마운트 변경 반영
-- [x] Docker 볼륨 영속성 (컨테이너 삭제 전/후)
-- [x] Git 사용자 정보·기본 브랜치 설정
-- [x] VSCode GitHub 로그인 및 저장소 연동 (push 완료)
-- [x] 민감정보 마스킹 (이메일)
+아래 이미지는 각 개념의 학습을 돕기 위한 보조 자료입니다. 정확한 수행 명령과 결과는 각 장의 본문을 기준으로 확인합니다.
+
+### 01. 개발 워크스테이션 전체 구조
+![01 개발 워크스테이션 전체 구조](docs/images/concepts/01-workstation-overview.png)
+
+### 02. Linux 파일 시스템과 CLI
+![02 Linux 파일 시스템과 CLI](docs/images/concepts/02-linux-filesystem-cli.png)
+
+### 03. Linux 파일 및 디렉터리 권한
+![03 Linux 권한과 chmod](docs/images/concepts/03-linux-permissions-chmod.png)
+
+### 04. Docker 기본 구조
+![04 Docker 기본 구조](docs/images/concepts/04-docker-basics.png)
+
+### 05. Docker run · exec · attach
+![05 Docker 컨테이너 실행과 종료](docs/images/concepts/05-docker-run-exec-attach.png)
+
+### 06. Dockerfile과 커스텀 이미지
+![06 Dockerfile과 커스텀 이미지](docs/images/concepts/06-dockerfile-custom-image.png)
+
+### 07. Docker 포트 매핑
+![07 Docker 포트 매핑](docs/images/concepts/07-docker-port-mapping.png)
+
+### 08. Docker 바인드 마운트
+![08 Docker 바인드 마운트](docs/images/concepts/08-docker-bind-mount.png)
+
+### 09. Docker 볼륨과 데이터 영속성
+![09 Docker 볼륨과 데이터 영속성](docs/images/concepts/09-docker-volume-persistence.png)
+
+### 10. Git과 GitHub 버전 관리
+![10 Git과 GitHub 버전 관리](docs/images/concepts/10-git-github-workflow.png)
+
+### 11. VSCode · WSL · GitHub 연동
+![11 VSCode WSL GitHub 연동](docs/images/concepts/11-vscode-wsl-github.png)
+
+### 12. 개발 환경 오류 해결과 트러블슈팅
+![12 개발 환경 트러블슈팅](docs/images/concepts/12-troubleshooting.png)
 
 ---
 
-## 5. 터미널 조작 로그
-
-> 작업 위치: WSL Ubuntu의 리눅스 홈(`/home/suwon`) 아래 `~/codyssey/practice`
-> Windows 드라이브 경로(`/mnt/c/...`)가 아닌 리눅스 홈에서 작업해야 권한(chmod)이 정상 반영된다.
-
-### 5-1. 현재 위치 확인 및 작업 폴더 생성·이동
-
-```bash
-$ cd ~
-$ pwd
-/home/suwon
-
-$ mkdir -p ~/codyssey/practice
-$ cd ~/codyssey/practice
-$ pwd
-/home/suwon/codyssey/practice
-
-$ ls -la
-total 8
-drwxr-xr-x 2 suwon suwon 4096 Nov  2 20:43 .
-drwxr-xr-x 3 suwon suwon 4096 Nov  2 20:43 ..
-```
-
-### 5-2. 빈 파일 생성, 내용 작성·확인, 복사
-
-```bash
-$ touch empty.txt
-$ echo "hello codyssey" > memo.txt
-$ cat memo.txt
-hello codyssey
-
-$ cp memo.txt memo_copy.txt
-$ ls -la
-total 16
-drwxr-xr-x 2 suwon suwon 4096 Nov  2 20:52 .
-drwxr-xr-x 3 suwon suwon 4096 Nov  2 20:43 ..
--rw-r--r-- 1 suwon suwon    0 Nov  2 20:51 empty.txt
--rw-r--r-- 1 suwon suwon   15 Nov  2 20:51 memo.txt
--rw-r--r-- 1 suwon suwon   15 Nov  2 20:52 memo_copy.txt
-```
-
-- `empty.txt`의 크기 0 → 빈 파일 생성 확인
-- `memo.txt`의 크기 15 → `hello codyssey`(14자) + `echo`가 붙이는 줄바꿈 1바이트
-
-### 5-3. 이름 변경, 디렉터리로 이동, 삭제
-
-```bash
-$ mv memo_copy.txt memo_renamed.txt
-$ mkdir sub
-$ mv memo_renamed.txt sub/
-
-$ ls -la
-total 16
-drwxr-xr-x 3 suwon suwon 4096 Nov  2 20:53 .
-drwxr-xr-x 3 suwon suwon 4096 Nov  2 20:43 ..
--rw-r--r-- 1 suwon suwon    0 Nov  2 20:51 empty.txt
--rw-r--r-- 1 suwon suwon   15 Nov  2 20:51 memo.txt
-drwxr-xr-x 2 suwon suwon 4096 Nov  2 20:53 sub
-
-$ ls -la sub
-total 12
-drwxr-xr-x 2 suwon suwon 4096 Nov  2 20:53 .
-drwxr-xr-x 3 suwon suwon 4096 Nov  2 20:53 ..
--rw-r--r-- 1 suwon suwon   15 Nov  2 20:52 memo_renamed.txt
-
-$ rm sub/memo_renamed.txt
-$ ls -la sub
-total 8
-drwxr-xr-x 2 suwon suwon 4096 Nov  2 20:53 .
-drwxr-xr-x 3 suwon suwon 4096 Nov  2 20:53 ..
-```
-
-- `mv`는 같은 위치에서 쓰면 **이름 변경**, 다른 디렉터리를 지정하면 **이동**이 된다.
-- `rm`으로 삭제한 파일은 휴지통을 거치지 않고 바로 삭제된다.
-
-## 6. 권한 실습
-
-### 6-1. 파일 권한 (memo.txt)
-
-```bash
-$ ls -l memo.txt
--rw-r--r-- 1 suwon suwon 15 Nov  2 20:51 memo.txt
-
-$ chmod 600 memo.txt
-$ ls -l memo.txt
--rw------- 1 suwon suwon 15 Nov  2 20:51 memo.txt
-
-$ chmod 644 memo.txt
-$ ls -l memo.txt
--rw-r--r-- 1 suwon suwon 15 Nov  2 20:51 memo.txt
-```
-
-| 단계 | 숫자 | 기호 | 의미 |
-|---|---|---|---|
-| 변경 전 | 644 | `rw-r--r--` | 소유자 읽기·쓰기, 그룹·기타 읽기 |
-| 변경 후 | 600 | `rw-------` | 소유자만 읽기·쓰기, 그룹·기타 권한 없음 |
-| 복구 | 644 | `rw-r--r--` | 원래 상태 |
-
-### 6-2. 디렉터리 권한 (sub)
-
-```bash
-$ ls -ld sub
-drwxr-xr-x 2 suwon suwon 4096 Nov  2 20:53 sub
-
-$ chmod 644 sub
-$ ls -ld sub
-drw-r--r-- 2 suwon suwon 4096 Nov  2 20:53 sub
-
-$ cd sub
-bash: cd: sub: Permission denied
-
-$ chmod 755 sub
-$ ls -ld sub
-drwxr-xr-x 2 suwon suwon 4096 Nov  2 20:53 sub
-
-$ cd sub
-$ pwd
-/home/suwon/codyssey/practice/sub
-$ cd ..
-```
-
-| 단계 | 숫자 | 기호 | 결과 |
-|---|---|---|---|
-| 변경 전 | 755 | `rwxr-xr-x` | 진입 가능 |
-| 변경 후 | 644 | `rw-r--r--` | `cd sub` → Permission denied |
-| 복구 | 755 | `rwxr-xr-x` | 다시 진입 가능 |
-
-### 6-3. 권한 표기 해석
-
-- r = 4, w = 2, x = 1 을 더한 값이며, 세 자리는 **소유자 / 그룹 / 기타 사용자** 순서이다.
-- `755` = `rwxr-xr-x` : 소유자는 읽기·쓰기·실행, 그룹과 기타는 읽기·실행
-- `644` = `rw-r--r--` : 소유자는 읽기·쓰기, 그룹과 기타는 읽기만
-- `ls -l` 맨 앞 글자는 종류를 뜻한다. `-`는 일반 파일, `d`는 디렉터리.
-- 디렉터리에서 `x`는 그 디렉터리 안으로 **들어갈(cd) 수 있는 권한**이다. 6-2에서 `x`만 빠진 644로 바꾸자 소유자 본인도 진입할 수 없었고, 755로 되돌리자 다시 진입할 수 있었다.
-
-## 7. Docker 설치 및 기본 점검
-
-- 설치: Docker Desktop 4.97.0 (Per-user installation, WSL 2 백엔드)
-- 설정: Settings → WSL integration → "Enable integration with my default WSL distro" 및 Ubuntu 활성화 → Apply & Restart Engine
-
-```bash
-$ docker --version
-Docker version 29.9.2, build a82e528
-```
-
-```bash
-$ docker info
-Client:
- Version:    29.9.2
- Context:    default
- Debug Mode: false
- ...(플러그인 목록 생략)
-
-Server:
- Containers: 0
-  Running: 0
-  Paused: 0
-  Stopped: 0
- Images: 0
- Server Version: 29.9.2
- Storage Driver: overlayfs
- Cgroup Driver: cgroupfs
- Cgroup Version: 2
- Kernel Version: 6.18.54.1-microsoft-standard-WSL2
- Operating System: Docker Desktop
- OSType: linux
- Architecture: x86_64
- CPUs: 12
- Total Memory: 7.602GiB
- ...(이하 생략)
-```
-
-- **Server:** 항목이 출력되므로 CLI가 Docker 데몬에 정상 연결된 상태이다.
-- `Containers: 0`, `Images: 0` → 아직 아무 컨테이너·이미지도 없는 초기 상태
-
-## 8. Docker 기본 운영 명령
-
-### 8-1. 이미지·컨테이너 목록 (hello-world 실행 직후)
-
-```bash
-$ docker images
-IMAGE                ID             DISK USAGE   CONTENT SIZE   EXTRA
-hello-world:latest   c567b231f656       25.9kB         9.49kB    U
-
-$ docker ps
-CONTAINER ID   IMAGE     COMMAND   CREATED   STATUS    PORTS     NAMES
-
-$ docker ps -a
-CONTAINER ID   IMAGE         COMMAND    CREATED              STATUS                          PORTS     NAMES
-4a1ba52bcbae   hello-world   "/hello"   About a minute ago   Exited (0) About a minute ago             hardcore_ardinghelli
-```
-
-- `docker ps`는 실행 중인 컨테이너만, `docker ps -a`는 종료된 컨테이너까지 보여준다.
-- `EXTRA`의 `U`(In Use)는 이 이미지를 사용하는 컨테이너가 존재한다는 표시이다.
-- `--name`을 주지 않으면 `hardcore_ardinghelli`처럼 이름이 자동 생성된다.
-
-### 8-2. 로그 확인
-
-```bash
-$ docker logs hardcore_ardinghelli
-
-Hello from Docker!
-This message shows that your installation appears to be working correctly.
-...(이하 hello-world 출력과 동일)
-```
-
-- 종료된 컨테이너도 삭제하기 전까지는 로그가 남아 있다.
-
-웹 서버 컨테이너(11장)의 접속 로그:
-
-```bash
-$ docker logs web-8080
-/docker-entrypoint.sh: Configuration complete; ready for start up
-2026/11/02 13:12:45 [notice] 1#1: nginx/1.31.8
-2026/11/02 13:12:45 [notice] 1#1: OS: Linux 6.18.54.1-microsoft-standard-WSL2
-2026/11/02 13:12:45 [notice] 1#1: start worker processes
-...(worker process 30 ~ 41 생략)
-172.17.0.1 - - [02/Nov/2026:13:12:57 +0000] "GET / HTTP/1.1" 200 41 "-" "curl/8.18.0" "-"
-172.17.0.1 - - [02/Nov/2026:13:13:58 +0000] "GET / HTTP/1.1" 200 41 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) ... Edg/156.0.0.0" "-"
-172.17.0.1 - - [02/Nov/2026:13:13:58 +0000] "GET /favicon.ico HTTP/1.1" 404 555 "http://localhost:8080/" "Mozilla/5.0 ..." "-"
-```
-
-- `curl`과 브라우저(Edge) 접속이 각각 `200`(성공)으로 기록됨. 응답 크기 `41`은 `index.html`(40자 + 줄바꿈)과 일치.
-- 로그 시각은 UTC 기준(13:12 UTC = 22:12 KST).
-
-### 8-3. 리소스 사용량
-
-```bash
-$ docker stats --no-stream
-CONTAINER ID   NAME       CPU %     MEM USAGE / LIMIT     MEM %     NET I/O           BLOCK I/O        PIDS
-841e14927e1b   web-8081   0.00%     10.5MiB / 7.602GiB    0.13%     4.23kB / 3.03kB   0B / 12.3kB      13
-07ffa5f2e54c   web-8080   0.00%     11.26MiB / 7.602GiB   0.14%     4.6kB / 3.03kB    573kB / 12.3kB   13
-```
-
-- `PIDS 13` = nginx 마스터 1개 + 워커 12개(`CPUs: 12`에 맞춰 생성).
-- `--no-stream`: 실시간 갱신 없이 한 번만 출력해 로그로 남기기 쉽게 함.
-
-## 9. 컨테이너 실행 실습
-
-### 9-1. hello-world
-
-```bash
-$ docker run hello-world
-Unable to find image 'hello-world:latest' locally
-latest: Pulling from library/hello-world
-4f55086f7dd0: Pull complete
-d5e71e642bf5: Download complete
-Digest: sha256:c567b231f65614688711a75f31518a064258a51d442117a3e771a3a8fdba78ef
-Status: Downloaded newer image for hello-world:latest
-
-Hello from Docker!
-This message shows that your installation appears to be working correctly.
-
-To generate this message, Docker took the following steps:
- 1. The Docker client contacted the Docker daemon.
- 2. The Docker daemon pulled the "hello-world" image from the Docker Hub.
-    (amd64)
- 3. The Docker daemon created a new container from that image which runs the
-    executable that produces the output you are currently reading.
- 4. The Docker daemon streamed that output to the Docker client, which sent it
-    to your terminal.
-...(이하 생략)
-```
-
-- 로컬에 이미지가 없어 Docker Hub에서 자동으로 pull한 뒤 컨테이너를 생성·실행했다.
-
-### 9-2. ubuntu 컨테이너 진입 (run -it → exit)
-
-```bash
-$ docker run -it --name ubu ubuntu bash
-Unable to find image 'ubuntu:latest' locally
-latest: Pulling from library/ubuntu
-...
-Status: Downloaded newer image for ubuntu:latest
-root@9be0ebd3383a:/# ls
-bin  boot  dev  etc  home  lib  lib64  media  mnt  opt  proc  root  run  sbin  srv  sys  tmp  usr  var
-root@9be0ebd3383a:/# echo "hello from container"
-hello from container
-root@9be0ebd3383a:/# exit
-exit
-
-$ docker ps -a
-CONTAINER ID   IMAGE         COMMAND    CREATED              STATUS                      PORTS     NAMES
-9be0ebd3383a   ubuntu        "bash"     About a minute ago   Exited (0) 6 seconds ago              ubu
-4a1ba52bcbae   hello-world   "/hello"   4 minutes ago        Exited (0) 4 minutes ago              hardcore_ardinghelli
-```
-
-- 프롬프트의 `9be0ebd3383a`는 컨테이너 ID 앞자리(호스트명)와 같다.
-- 컨테이너 안의 파일 시스템은 호스트(`/home/suwon`)와 분리된 독립 환경이다.
-
-### 9-3. exec 진입 → exit (컨테이너 유지)
-
-```bash
-$ docker start ubu
-ubu
-$ docker ps
-CONTAINER ID   IMAGE     COMMAND   CREATED         STATUS         PORTS     NAMES
-9be0ebd3383a   ubuntu    "bash"    2 minutes ago   Up 9 seconds             ubu
-
-$ docker exec -it ubu bash
-root@9be0ebd3383a:/# exit
-exit
-
-$ docker ps
-CONTAINER ID   IMAGE     COMMAND   CREATED         STATUS          PORTS     NAMES
-9be0ebd3383a   ubuntu    "bash"    2 minutes ago   Up 47 seconds             ubu
-```
-
-### 9-4. attach → Ctrl+P, Ctrl+Q (컨테이너 유지)
-
-```bash
-$ docker attach ubu
-root@9be0ebd3383a:/# read escape sequence
-
-$ docker ps
-CONTAINER ID   IMAGE     COMMAND   CREATED         STATUS         PORTS     NAMES
-9be0ebd3383a   ubuntu    "bash"    4 minutes ago   Up 2 minutes             ubu
-```
-
-### 9-5. attach → exit (컨테이너 종료)
-
-```bash
-$ docker attach ubu
-root@9be0ebd3383a:/# exit
-exit
-
-$ docker ps -a
-CONTAINER ID   IMAGE         COMMAND    CREATED         STATUS                     PORTS     NAMES
-9be0ebd3383a   ubuntu        "bash"     4 minutes ago   Exited (0) 5 seconds ago             ubu
-4a1ba52bcbae   hello-world   "/hello"   7 minutes ago   Exited (0) 7 minutes ago             hardcore_ardinghelli
-```
-
-### 9-6. attach / exec 차이 정리
-
-| 들어간 방법 | 나온 방법 | 결과 | 근거 |
-|---|---|---|---|
-| `docker run -it` | `exit` | 종료 | 9-2 `Exited (0)` |
-| `docker exec -it` | `exit` | 유지 | 9-3 `Up 47 seconds` |
-| `docker attach` | `Ctrl+P`, `Ctrl+Q` | 유지 | 9-4 `Up 2 minutes` |
-| `docker attach` | `exit` | 종료 | 9-5 `Exited (0)` |
-
-- 컨테이너는 **메인 프로세스(COMMAND의 `"bash"`)가 살아 있는 동안만** 실행된다.
-- `exec`는 실행 중인 컨테이너에 **새 프로세스를 추가**로 띄우므로, 그 셸을 종료해도 컨테이너는 유지된다.
-- `run -it`과 `attach`는 **메인 프로세스에 직접 연결**되므로 `exit` 하면 컨테이너가 종료된다. 종료 없이 연결만 끊으려면 `Ctrl+P`, `Ctrl+Q`를 쓴다.
-- `attach` 직후에는 프롬프트가 새로 출력되지 않아 멈춘 것처럼 보이며, Enter를 누르면 프롬프트가 나타난다.
-
-## 10. Dockerfile 기반 커스텀 이미지
-
-### 10-1. 선택한 베이스
-
-- 방식: (A) 웹 서버 베이스 이미지 활용 + 정적 콘텐츠 교체
-- 베이스 이미지: `nginx:alpine`
-- 선택 이유: 공식 nginx 이미지이며 Alpine 기반이라 가볍고, 정적 페이지만 교체해 웹 서버를 바로 확인할 수 있다.
-
-### 10-2. 정적 콘텐츠와 Dockerfile
-
-```bash
-$ mkdir -p ~/codyssey/workstation/site
-$ cd ~/codyssey/workstation
-$ echo "<h1>Hello from suwon's custom nginx</h1>" > site/index.html
-$ cat site/index.html
-<h1>Hello from suwon's custom nginx</h1>
-```
-
-> 참고: 12장 바인드 마운트 실습에서 `site/index.html`에 한 줄을 추가했으므로, 현재 저장소의 파일에는 두 줄이 들어 있다. 이 상태로 다시 빌드하면 두 줄이 모두 이미지에 포함된다.
-
-`nano Dockerfile`로 직접 작성:
-
-```dockerfile
-FROM nginx:alpine
-LABEL org.opencontainers.image.title="suwon-custom-nginx"
-LABEL org.opencontainers.image.authors="suwon"
-ENV APP_ENV=dev
-COPY site/ /usr/share/nginx/html/
-EXPOSE 80
-```
-
-### 10-3. 커스텀 포인트와 목적
-
-| 커스텀 포인트 | 목적 |
-|---|---|
-| `COPY site/ /usr/share/nginx/html/` | nginx 기본 페이지를 직접 만든 정적 콘텐츠로 교체 (핵심) |
-| `LABEL ...title`, `...authors` | 이미지 식별용 메타데이터(이름·작성자) 기록 |
-| `ENV APP_ENV=dev` | 실행 환경 표시용 환경 변수 (nginx 동작에는 영향 없음) |
-| `EXPOSE 80` | 컨테이너가 80번 포트를 사용함을 문서화 (실제 외부 공개는 `-p`로 함) |
-
-### 10-4. 빌드 및 확인
-
-```bash
-$ docker build -t suwon-web:1.0 .
-[+] Building 8.9s (8/8) FINISHED                                    docker:default
- => [internal] load build definition from Dockerfile
- => [internal] load metadata for docker.io/library/nginx:alpine
- => [1/2] FROM docker.io/library/nginx:alpine@sha256:785835ea65db...
- => => (레이어 다운로드 및 extracting 생략)
- => [2/2] COPY site/ /usr/share/nginx/html/
- => exporting to image
- => => naming to docker.io/library/suwon-web:1.0
- => => unpacking to docker.io/library/suwon-web:1.0
-```
-
-```bash
-$ docker images
-IMAGE                ID             DISK USAGE   CONTENT SIZE   EXTRA
-hello-world:latest   c567b231f656       25.9kB         9.49kB    U
-suwon-web:1.0        089791a90ba4       93.6MB         26.3MB
-ubuntu:latest        6a06111c3b0a        163MB         45.9MB    U
-
-$ docker inspect --format '{{json .Config.Labels}}' suwon-web:1.0
-{"maintainer":"NGINX Docker Maintainers <docker-maint@nginx.com>","org.opencontainers.image.authors":"suwon","org.opencontainers.image.title":"suwon-custom-nginx"}
-```
-
-- 빌드 단계가 `[1/2] FROM`, `[2/2] COPY` 두 개만 표시된 이유: `LABEL`, `ENV`, `EXPOSE`는 파일을 바꾸지 않고 이미지 설정(메타데이터)만 기록하기 때문이다.
-- `inspect` 결과에 내가 넣은 `authors`, `title`과 함께 베이스 이미지의 `maintainer` 라벨이 **상속**되어 있다. 커스텀 이미지는 베이스 이미지 위에 설정을 덧붙인 구조이다.
-- 베이스 `nginx:alpine`은 빌드 과정에서 필요한 레이어만 가져와 사용했으므로 `docker images` 목록에 별도로 나타나지 않는다.
-
-## 11. 포트 매핑 및 접속 증거 (2회)
-
-```bash
-$ docker run -d -p 8080:80 --name web-8080 suwon-web:1.0
-07ffa5f2e54c59c32c74d39bcdee1c7683b73edacabec382ce5d4b9e548865ca
-$ curl http://localhost:8080
-<h1>Hello from suwon's custom nginx</h1>
-
-$ docker run -d -p 8081:80 --name web-8081 suwon-web:1.0
-841e14927e1b78c560f80edbcaf45ee4e2e1a86f9e529c11958489ec2aded222
-$ curl http://localhost:8081
-<h1>Hello from suwon's custom nginx</h1>
-
-$ docker ps
-CONTAINER ID   IMAGE           COMMAND                  CREATED          STATUS          PORTS                                     NAMES
-841e14927e1b   suwon-web:1.0   "/docker-entrypoint.…"   12 seconds ago   Up 11 seconds   0.0.0.0:8081->80/tcp, [::]:8081->80/tcp   web-8081
-07ffa5f2e54c   suwon-web:1.0   "/docker-entrypoint.…"   31 seconds ago   Up 30 seconds   0.0.0.0:8080->80/tcp, [::]:8080->80/tcp   web-8080
-```
-
-브라우저 접속 화면 (주소창의 포트와 응답 화면):
-
-![8080 접속](docs/images/port-8080.png)
-![8081 접속](docs/images/port-8081.png)
-
-**포트 매핑이 필요한 이유**: 컨테이너는 격리된 네트워크에서 실행되므로, 호스트의 포트를 컨테이너 포트에 연결(`-p 호스트:컨테이너`)해야 외부(브라우저, curl)에서 접속할 수 있다. 또한 같은 컨테이너 포트(80)를 쓰는 컨테이너 여러 개도 호스트 포트만 다르게(8080, 8081) 주면 동시에 실행할 수 있다.
-
-## 12. 바인드 마운트 변경 반영
-
-```bash
-$ docker run -d -p 8082:80 --name web-bind -v "$(pwd)/site":/usr/share/nginx/html suwon-web:1.0
-59825d2849bb5fea12c8f53e84cd9a4bf92b2f450b06b3f2c3dcd44bab425dbe
-
-$ curl http://localhost:8082
-<h1>Hello from suwon's custom nginx</h1>
-
-$ echo "<p>bind mount test: updated from host</p>" >> site/index.html
-
-$ curl http://localhost:8082
-<h1>Hello from suwon's custom nginx</h1>
-<p>bind mount test: updated from host</p>
-
-$ curl http://localhost:8080
-<h1>Hello from suwon's custom nginx</h1>
-```
-
-| 요청 | 결과 | 의미 |
-|---|---|---|
-| 8082 (변경 전) | `<h1>` 한 줄 | 연결된 호스트 파일의 원래 내용 |
-| 8082 (변경 후) | `<h1>` + `<p>` | 재빌드·재시작 없이 호스트 변경이 즉시 반영 |
-| 8080 (비교) | `<h1>` 한 줄 | 빌드 시점에 `COPY`된 내용이라 변경이 반영되지 않음 |
-
-- 바인드 마운트는 호스트 폴더가 컨테이너의 `/usr/share/nginx/html`을 덮어서 연결한다.
-- 재현성: 절대경로 대신 `"$(pwd)/site"`를 사용하므로 저장소 루트에서 실행하면 어느 PC에서나 같은 결과가 나온다. (Windows PowerShell에서는 `${PWD}/site` 형식 사용)
-
-## 13. Docker 볼륨 영속성
-
-```bash
-$ docker volume create suwon-data
-suwon-data
-
-$ docker run -d --name vol-a -v suwon-data:/data ubuntu sleep infinity
-174c1512740d38bc6730db804e1a73ad2197da0d6a7334c49e5bc5b9f6536290
-
-$ docker exec vol-a bash -c "echo 'saved by vol-a' > /data/note.txt && cat /data/note.txt"
-saved by vol-a
-
-$ docker rm -f vol-a
-vol-a
-
-$ docker ps -a
-CONTAINER ID   IMAGE           COMMAND                  CREATED              STATUS                      PORTS                                     NAMES
-59825d2849bb   suwon-web:1.0   "/docker-entrypoint.…"   About a minute ago   Up About a minute           0.0.0.0:8082->80/tcp, [::]:8082->80/tcp   web-bind
-841e14927e1b   suwon-web:1.0   "/docker-entrypoint.…"   4 minutes ago        Up 4 minutes                0.0.0.0:8081->80/tcp, [::]:8081->80/tcp   web-8081
-07ffa5f2e54c   suwon-web:1.0   "/docker-entrypoint.…"   4 minutes ago        Up 4 minutes                0.0.0.0:8080->80/tcp, [::]:8080->80/tcp   web-8080
-9be0ebd3383a   ubuntu          "bash"                   49 minutes ago       Exited (0) 45 minutes ago                                             ubu
-4a1ba52bcbae   hello-world     "/hello"                 52 minutes ago       Exited (0) 52 minutes ago                                             hardcore_ardinghelli
-
-$ docker run -d --name vol-b -v suwon-data:/data ubuntu sleep infinity
-a3f0e0b9c8cb1aa0678e6f27264efb399c39c6bf14ecb099d76a6f5df9dcb5e1
-
-$ docker exec vol-b cat /data/note.txt
-saved by vol-a
-
-$ docker volume ls
-DRIVER    VOLUME NAME
-local     suwon-data
-
-$ docker volume inspect suwon-data
-[
-    {
-        "CreatedAt": "2026-11-02T13:17:02Z",
-        "Driver": "local",
-        "Labels": null,
-        "Mountpoint": "/var/lib/docker/volumes/suwon-data/_data",
-        "Name": "suwon-data",
-        "Options": null,
-        "Scope": "local"
-    }
-]
-```
-
-- `vol-a`를 삭제한 뒤(`docker ps -a` 목록에서 사라짐) 새로 만든 `vol-b`에서 `vol-a`가 쓴 파일이 그대로 읽힘 → **컨테이너를 삭제해도 볼륨 데이터는 유지**된다.
-- `Mountpoint`는 Docker Desktop이 관리하는 영역 안의 경로라서 Ubuntu 홈에서 직접 보이지 않는다.
-
-| 구분 | 바인드 마운트 | Docker 볼륨 |
-|---|---|---|
-| 저장 위치 | 내가 지정한 호스트 폴더 (`$(pwd)/site`) | Docker가 관리하는 저장 공간 |
-| 주 용도 | 개발 중 코드·파일을 즉시 반영 | 컨테이너와 독립적인 데이터 보존 |
-| 확인 결과 | 호스트 수정이 즉시 반영 (12장) | 컨테이너 삭제 후에도 데이터 유지 (13장) |
-
-## 14. Git 설정 및 GitHub 연동
-
-```bash
-$ git --version
-git version 2.53.0
-
-$ git config --global user.name "suwon"
-$ git config --global user.email "lees****@gmail.com"
-$ git config --global init.defaultBranch main
-
-$ git config --list
-user.name=suwon
-user.email=lees****@gmail.com
-init.defaultbranch=main
-```
-
-> 이메일은 마스킹함. Git은 설정 키를 소문자로 저장하므로 `init.defaultbranch`로 표시된다.
-
-```bash
-$ git init
-Initialized empty Git repository in /home/suwon/codyssey/workstation/.git/
-
-$ git status
-On branch main
-
-No commits yet
-
-Untracked files:
-  (use "git add <file>..." to include in what will be committed)
-        Dockerfile
-        site/
-```
-
-- `On branch main` → `init.defaultBranch main` 설정이 적용됨.
-- VSCode: 1.143.1 설치, WSL 확장 설치 후 Ubuntu 터미널에서 `code .`으로 작업 폴더를 WSL 모드(`WSL: Ubuntu`)로 열고 Workspace Trust 설정.
-
-### 14-1. 커밋
-
-```bash
-$ chmod 644 README.md docs/images/*.png
-$ git add .
-$ git status
-Changes to be committed:
-  (use "git rm --cached <file>..." to unstage)
-        new file:   Dockerfile
-        new file:   README.md
-        new file:   docs/images/port-8080.png
-        new file:   docs/images/port-8081.png
-        new file:   site/index.html
-
-$ git commit -m "Add Dockerfile, site, README and evidence images"
- 5 files changed, 704 insertions(+)
- create mode 100644 Dockerfile
- create mode 100644 README.md
- create mode 100644 docs/images/port-8080.png
- create mode 100644 docs/images/port-8081.png
- create mode 100644 site/index.html
-```
-
-- 모든 파일이 `100644`(일반 파일 권한)로 기록됨. Windows 경로에서 복사한 파일의 실행 권한을 `chmod 644`로 정리했기 때문이다(15-5 참고).
-
-### 14-2. 원격 저장소 연결 및 push (VSCode GitHub 로그인)
-
-```bash
-$ git remote add origin https://github.com/leesw0224/codyssey-workstation.git
-$ git push -u origin main
-Enumerating objects: 10, done.
-Counting objects: 100% (10/10), done.
-Delta compression using up to 12 threads
-Compressing objects: 100% (8/8), done.
-Writing objects: 100% (10/10), 86.62 KiB | 17.32 MiB/s, done.
-Total 10 (delta 0), reused 0 (delta 0), pack-reused 0 (from 0)
-To https://github.com/leesw0224/codyssey-workstation.git
- * [new branch]      main -> main
-branch 'main' set up to track 'origin/main'.
-```
-
-- VSCode 통합 터미널(WSL)에서 `git push` 실행 시 VSCode의 GitHub 확장이 로그인을 요청했고, Allow 후 계정(leesw0224)을 선택하여 인증 → push 성공.
-- 비밀번호나 토큰을 터미널에 직접 입력하지 않고 VSCode의 GitHub 인증을 사용했다.
-
-VSCode GitHub 로그인 요청:
-
-![VSCode GitHub 로그인](docs/images/vscode-github.png)
-
-GitHub 계정 선택:
-
-![VSCode GitHub 계정 선택](docs/images/vscode-account.png)
-
-push 성공 (상태 표시줄 `WSL: Ubuntu`, 브랜치 `main`):
-
-![git push 성공](docs/images/git-push.png)
-
-**Git과 GitHub의 차이**: Git은 내 컴퓨터에서 파일의 변경 이력을 관리하는 **로컬 버전 관리 도구**이고, GitHub는 Git 저장소를 원격에 올려 공유·협업하는 **원격 플랫폼**이다.
-
-## 15. 트러블슈팅
-
-### 15-1. `wsl --install` 후 Ubuntu가 실행되지 않음
-
-- **문제**: `wsl --install` 실행 후 시작 메뉴에서 Ubuntu가 검색되지 않음
-- **원인 가설**: WSL 기능만 활성화되고 리눅스 배포판(Ubuntu)은 설치되지 않았을 것이다.
-- **확인**:
-  ```powershell
-  PS C:\Users\user> wsl -l -v
-  Linux용 Windows 하위 시스템 설치된 배포가 없습니다.
-  ```
-- **해결**: 관리자 권한 PowerShell에서 배포판을 지정해 설치
-  ```powershell
-  PS C:\Users\user> wsl --install -d Ubuntu
-  다운로드 중: Ubuntu
-  설치 중: Ubuntu
-  배포가 설치되었습니다.
-  ```
-  이후 사용자 계정 생성까지 완료되어 `suwon@localhost` 프롬프트 확인
-
-### 15-2. `mkdir sub` 실행 시 `File exists`
-
-- **문제**:
-  ```bash
-  $ mkdir sub
-  mkdir: sub: File exists
-  ```
-- **원인 가설**: 같은 이름의 디렉터리가 이미 존재할 것이다.
-- **확인**: `ls -la` 결과에 `sub` 디렉터리가 이미 있음
-- **해결/대안**: 이미 만든 디렉터리를 그대로 사용. 존재 여부와 관계없이 오류 없이 생성하려면 `mkdir -p`를 쓴다(이미 있으면 조용히 넘어감).
-
-### 15-3. `git config user.email`에 잘못된 값 저장
-
-- **문제**: `git config --list` 결과 `user.email`에 실제 이메일이 아닌 안내 문구가 저장됨
-- **원인 가설**: 예시 명령의 자리 표시 문구를 실제 값으로 바꾸지 않고 그대로 입력했을 것이다.
-- **확인**: `git config --list`로 저장된 값 확인
-- **해결**: 같은 명령을 실제 이메일로 다시 실행하면 기존 값이 덮어써짐
-  ```bash
-  $ git config --global user.email "lees****@gmail.com"
-  $ git config --list
-  user.email=lees****@gmail.com
-  ```
-
-### 15-4. nginx 로그의 `favicon.ico` 404 오류
-
-- **문제**: `docker logs web-8080`에 `GET /favicon.ico ... 404`와 `[error] ... favicon.ico failed (2: No such file or directory)` 기록
-- **원인 가설**: 브라우저가 탭 아이콘을 표시하려고 `/favicon.ico`를 자동 요청했지만 사이트에 해당 파일이 없을 것이다.
-- **확인**: 같은 시각에 `GET /`는 `200`, `GET /favicon.ico`만 `404`이며 User-Agent가 브라우저(Edge)임
-- **해결/대안**: 페이지 동작에는 영향이 없어 그대로 둠. 필요하면 `site/`에 `favicon.ico`를 추가하면 사라진다.
-
-### 15-5. Windows에서 복사한 README.md에 실행 권한이 붙음
-
-- **문제**: `cp /mnt/c/Users/user/Downloads/README.md .` 후 `ls -la`에서 README.md만 `-rwxr-xr-x`(755)
-- **원인 가설**: Windows 드라이브(`/mnt/c`)의 파일은 리눅스 권한 정보가 없어 실행 권한이 포함된 상태로 보이고, 복사할 때 그 권한이 넘어왔을 것이다.
-- **확인**: 같은 폴더의 `Dockerfile`(리눅스에서 직접 작성)은 `-rw-r--r--`(644)
-- **해결**: 문서·이미지에는 실행 권한이 필요 없으므로 644로 변경. Git은 실행 권한도 기록하므로 커밋 전에 정리함.
-  ```bash
-  $ chmod 644 README.md
-  $ ls -l README.md
-  -rw-r--r-- 1 suwon suwon 27277 Nov  2 22:43 README.md
-  ```
-  결과적으로 커밋 시 모든 파일이 `create mode 100644`로 기록됨(14-1).
-
-### 15-6. 이미지 복사 시 `No such file or directory`
-
-- **문제**:
-  ```bash
-  $ cp /mnt/c/Users/user/Downloads/port-8080.png /mnt/c/Users/user/Downloads/port-8081.png docs/images/
-  cp: cannot stat '/mnt/c/Users/user/Downloads/port-8080.png': No such file or directory
-  cp: cannot stat '/mnt/c/Users/user/Downloads/port-8081.png': No such file or directory
-  ```
-- **원인 가설**: 파일이 지정한 경로에 없을 것이다(경로 오류).
-- **확인**: Windows 탐색기에서 파일 위치가 `다운로드 > files` 하위 폴더임을 확인 (`ls /mnt/c/Users/user/Downloads/`로도 확인 가능)
-- **해결**: 하위 폴더를 포함한 정확한 경로로 다시 복사
-  ```bash
-  $ cp /mnt/c/Users/user/Downloads/files/port-8080.png /mnt/c/Users/user/Downloads/files/port-8081.png docs/images/
-  ```
-
-## 16. 과제 목표 정리
-
-| 항목 | 내 설명 |
-|---|---|
-| 절대 경로 vs 상대 경로 | `/`로 시작하는 `/home/suwon/codyssey/practice/sub`는 어디서 입력해도 같은 위치(절대 경로), `sub`나 `..`는 현재 위치 기준으로 해석(상대 경로) |
-| 권한 r/w/x, 755·644 | 6-3 참고 |
-| 커스텀 이미지 | 10장 참고: `nginx:alpine` 위에 정적 콘텐츠·라벨·환경 변수를 덧붙임 |
-| 포트 매핑이 필요한 이유 | 11장 참고 |
-| Docker 볼륨 | 13장 참고: 컨테이너 삭제 후에도 데이터 유지 |
-| Git vs GitHub | 14장 참고 |
-
-## 17. 보안 및 개인정보
-
-- 로그·README·스크린샷에서 이메일 주소를 마스킹했다.
-- 토큰, 비밀번호, 개인 키, 인증 코드는 문서와 저장소에 포함하지 않는다.
-- 민감정보가 커밋된 경우 **먼저 해당 토큰을 폐기하고 재발급**한 뒤 히스토리를 정리한다.
-- push 전 README와 스크린샷에 토큰·비밀번호·실제 이메일이 노출되지 않았는지 확인했다.
-- GitHub 인증은 VSCode GitHub 확장으로 처리하여 토큰을 문서나 터미널 기록에 남기지 않았다.
+**작성 원칙:** 실제 수행 결과와 평가 피드백에 따른 문서 보완 내용을 구분했습니다. 이미지의 설명 문구가 실제 수행 로그와 다를 경우, 명령어와 실행 결과가 기록된 본문을 기준으로 합니다.
